@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import pickle
 import cvzone
@@ -50,7 +51,7 @@ while True:
     success, img = cap.read()
 
     imgS = cv2.resize(img,(0,0),None,0.25,0.25)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
 
     faceCurFrame = face_recognition.face_locations(imgS)
     encodeCurFrame = face_recognition.face_encodings(imgS, faceCurFrame)
@@ -60,61 +61,104 @@ while True:
     imgModeResized = cv2.resize(imgModeList[modeType], (864, 1263))
     imgBackground[91:91 + 1263, 1615:1615 + 864] = imgModeResized
 
-    for encodeFace, faceLoc in zip(encodeCurFrame, faceCurFrame):
-        matches = face_recognition.compare_faces(encodeListKnown, encodeFace)
-        faceDis = face_recognition.face_distance(encodeListKnown, encodeFace)
-        # print("matches", matches)
-        # print("faceDis",faceDis)
+    if faceCurFrame:
+        for encodeFace, faceLoc in zip(encodeCurFrame, faceCurFrame):
+            matches = face_recognition.compare_faces(encodeListKnown, encodeFace)
+            faceDis = face_recognition.face_distance(encodeListKnown, encodeFace)
+            # print("matches", matches)
+            # print("faceDis",faceDis)
 
-        matchIndex = np.argmin(faceDis)
-        # print("Match Index", matchIndex)
+            matchIndex = np.argmin(faceDis)
+            # print("Match Index", matchIndex)
 
-        if matches[matchIndex]:
-            # print("Known Face Detected")
-            # print(studentIds[matchIndex])
-            y1,x2,y2,x1 = faceLoc
-            y1, x2, y2, x1 = y1*4,x2*4,y2*4,x1*4
-            bbox =  -190+x1, y1, x2-x1, y2-y1
-            imgBackground= cvzone.cornerRect(imgBackground,bbox,rt=0)
-            id = studentIds[matchIndex]
+            if matches[matchIndex]:
+                # print("Known Face Detected")
+                # print(studentIds[matchIndex])
+                y1,x2,y2,x1 = faceLoc
+                y1, x2, y2, x1 = y1*4,x2*4,y2*4,x1*4
+                bbox =  -190+x1, y1, x2-x1, y2-y1
+                imgBackground= cvzone.cornerRect(imgBackground,bbox,rt=0)
+                id = studentIds[matchIndex]
 
-            if counter == 0:
-                counter = 1
-                modeType = 1
+                if counter == 0:
+                    cvzone.putTextRect(imgBackground,"Loading",(175,395))
+                    cv2.imshow("Face Attendance System", imgBackground)
+                    cv2.waitKey(1)
+                    counter = 1
+                    modeType = 1
 
-    if counter != 0:
-        if counter == 1:
-            #Get the Data
-            studentInfo = db.reference(f'Students/{id}').get()
-            print(studentInfo)
+        if counter != 0:
+            if counter == 1:
+                #Get the Data
+                studentInfo = db.reference(f'Students/{id}').get()
+                print(studentInfo)
 
-            #Get the Image from the storage
-            blob = bucket.get_blob(f'Images/{id}.jpg')
-            array = np.frombuffer(blob.download_as_string(),np.uint8)
-            imgStudent = cv2.imdecode(array,cv2.COLOR_BGRA2BGR)
+                #Get the Image from the storage
+                blob = bucket.get_blob(f'Images/{id}.jpg')
+                array = np.frombuffer(blob.download_as_string(),np.uint8)
+                imgStudent = cv2.imdecode(array,cv2.COLOR_BGRA2BGR)
+                #Update data of attendance
+                datetimeObject = datetime.strptime(studentInfo['last_attendance_time'],
+                                                  "%Y-%m-%d %H:%M:%S")
+                secondsElapsed= (datetime.now()-datetimeObject).total_seconds()
+                print(secondsElapsed)
+                if secondsElapsed>30:  ##If we want to do it real time we can convert the 30 sconds
 
-        cv2.putText(imgBackground,str(studentInfo['total_attendance']),(1750,252),
-                    cv2.FONT_HERSHEY_COMPLEX,2,(255,255,255),2)
-        cv2.putText(imgBackground, str(studentInfo['major']), (2015, 1105),
-                    cv2.FONT_HERSHEY_COMPLEX, 0.9, (255,255,255), 2)
-        cv2.putText(imgBackground, str(id), (2015,990),
-                    cv2.FONT_HERSHEY_COMPLEX, 0.9, (255,255,255), 2)
-        cv2.putText(imgBackground, str(studentInfo['standing']), (1820, 1260),
-                    cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
-        cv2.putText(imgBackground, str(studentInfo['year']), (2050, 1260),
-                    cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
-        cv2.putText(imgBackground, str(studentInfo['starting_year']), (2250, 1260),
-                    cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
-
-        (w,h),_=cv2.getTextSize(studentInfo['name'],cv2.FONT_HERSHEY_COMPLEX,1,1)
-        offset =(864-w)//2
-        cv2.putText(imgBackground, str(studentInfo['name']), (1510+offset, 888),
-                    cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
+                    ref = db.reference(f'Students/{id}')
+                    studentInfo['total_attendance']+=1
+                    ref.child('total_attendance').set( studentInfo['total_attendance'])
+                    ref.child('last_attendance_time').set(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                else:
+                    modeType=0
+                    counter=0
+                    imgModeResized = cv2.resize(imgModeList[modeType], (864, 1263))
+                    imgBackground[91:91 + 1263, 1615:1615 + 864] = imgModeResized
 
 
-        imgStudentResized = cv2.resize(imgStudent, (452, 444))
-        imgBackground[352:352 + 444, 1826:1826 + 452] = imgStudentResized
-        counter +=1
+            if modeType!= 0:
+                if 10<counter<20:
+                    modeType=2
+                imgModeResized = cv2.resize(imgModeList[modeType], (864, 1263))
+                imgBackground[91:91 + 1263, 1615:1615 + 864] = imgModeResized
+
+
+                if counter<=10:
+                    cv2.putText(imgBackground,str(studentInfo['total_attendance']),(1750,252),
+                                cv2.FONT_HERSHEY_COMPLEX,2,(255,255,255),2)
+                    cv2.putText(imgBackground, str(studentInfo['major']), (2015, 1105),
+                                cv2.FONT_HERSHEY_COMPLEX, 0.9, (255,255,255), 2)
+                    cv2.putText(imgBackground, str(id), (2015,990),
+                                cv2.FONT_HERSHEY_COMPLEX, 0.9, (255,255,255), 2)
+                    cv2.putText(imgBackground, str(studentInfo['standing']), (1820, 1260),
+                                cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
+                    cv2.putText(imgBackground, str(studentInfo['year']), (2050, 1260),
+                                cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
+                    cv2.putText(imgBackground, str(studentInfo['starting_year']), (2250, 1260),
+                                cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
+
+                    (w,h),_=cv2.getTextSize(studentInfo['name'],cv2.FONT_HERSHEY_COMPLEX,1,1)
+                    offset =(864-w)//2
+                    cv2.putText(imgBackground, str(studentInfo['name']), (1510+offset, 888),
+                                cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 0), 2)
+
+
+                    imgStudentResized = cv2.resize(imgStudent, (452, 444))
+                    imgBackground[352:352 + 444, 1826:1826 + 452] = imgStudentResized
+
+
+                counter +=1
+
+                if counter >20:
+                    counter = 0
+                    modeType=3
+                    studentInfo=[]
+                    imgStudent=[]
+                    imgModeResized = cv2.resize(imgModeList[modeType], (864, 1263))
+                    imgBackground[91:91 + 1263, 1615:1615 + 864] = imgModeResized
+
+    else:
+        modeType=3
+        counter=0
 
 
     cv2.imshow("Webcam", imgResized)

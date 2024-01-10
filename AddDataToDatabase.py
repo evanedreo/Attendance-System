@@ -18,7 +18,7 @@ data = {
             "total_attendance":6,
             "standing":"G",
             "year":2,
-            "last_attendance_time":"01-09-2024 20:56:11"
+            "last_attendance_time":"2024-01-09 20:56:11"
         },
     "11273":
         {
@@ -28,7 +28,7 @@ data = {
             "total_attendance": 6,
             "standing": "G",
             "year": 3,
-            "last_attendance_time": "01-09-2024 20:56:11"
+            "last_attendance_time": "2024-01-09 20:56:11"
         },
     "12912":
         {
@@ -38,7 +38,7 @@ data = {
             "total_attendance": 10,
             "standing": "B",
             "year": 4,
-            "last_attendance_time": "01-09-2024 20:56:11"
+            "last_attendance_time": "2024-01-09 20:56:11"
         }
 
 }
